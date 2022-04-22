@@ -35,13 +35,14 @@ public class HandleChannelMovement extends ListenerAdapter {
         rand = new Random();
         //TODO delete every temp Channel
         //TODO Create Tmp Channels if someone is in
+        //TODO Restore Masters
     }
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event)
     {
         //TODO Clear Command
-        //TODO Add Command
+        //TODO Remove Command
         Message message = event.getMessage();
         MessageChannel channel = event.getChannel();
         String content = message.getContentRaw();
@@ -206,4 +207,6 @@ public class HandleChannelMovement extends ListenerAdapter {
         });
         System.out.println("Created channel: "+ "⏰;"+num+";"+name);
     }
+
+    //TODO fix on channel change
 }
