@@ -13,9 +13,9 @@ public abstract class StartBot extends ListenerAdapter {
         try {
             key = readLine("secret.txt");
         } catch (Exception e) {
-            System.out.println("Could not read secret.txt");
-            System.out.println("Please create a file called secret.txt with your bot's token in it");
-            System.out.println("You can get your bot's token from https://discordapp.com/developers/applications/me");
+            System.err.println("Could not read secret.txt");
+            System.err.println("Please create a file called secret.txt with your bot's token in it");
+            System.err.println("You can get your bot's token from https://discordapp.com/developers/applications/me");
             System.exit(-10);
             throw new RuntimeException(e);
         }

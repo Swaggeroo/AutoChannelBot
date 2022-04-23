@@ -123,3 +123,4 @@ local.properties
 ###custom
 /secret.txt
 /target/
+/config.cfg

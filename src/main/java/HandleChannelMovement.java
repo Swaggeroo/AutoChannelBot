@@ -1,24 +1,21 @@
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.events.Event;
 import net.dv8tion.jda.api.events.guild.voice.*;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
-import net.dv8tion.jda.api.hooks.EventListener;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.requests.restaction.ChannelAction;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.io.*;
+import java.util.*;
 
 public class HandleChannelMovement extends ListenerAdapter {
     JDA jda;
     final static String prefix = ">";
     Random rand;
     TextChannel debugChannel = null;
+    Guild guild = null;
 
     ArrayList<VoiceChannel> tmpChannelList = new ArrayList<>();
     HashMap<VoiceChannel,VoiceChannel> tmpChannelMapMaster = new HashMap<>();
@@ -35,9 +32,37 @@ public class HandleChannelMovement extends ListenerAdapter {
     public HandleChannelMovement(JDA jda) {
         this.jda = jda;
         rand = new Random();
-        //TODO delete every temp Channel
-        //TODO Create Tmp Channels if someone is in
-        //TODO Restore Masters
+        readConfig();
+        if (debugChannel != null){
+            debugChannel.sendMessage("Bot started").queue();
+        }else {
+            System.out.println("Debug Channel not set");
+        }
+
+        if (guild != null){
+            recreateTmpChannels(guild);
+        }else {
+            System.err.println("Please run the command \">setup\" on the server you want to use the bot on");
+        }
+
+        if (tmpMasterChannelList.size() != 0){
+            System.out.println("Master Channel List: ");
+            StringBuilder sb = new StringBuilder();
+            if (debugChannel != null){
+                sb.append("Master Channel List: \n");
+            }
+            for (VoiceChannel vc : tmpMasterChannelList){
+                System.out.println(vc.getName() + " - " + vc.getId());
+                if (debugChannel != null){
+                    sb.append("<#").append(vc.getId()).append(">\n");
+                }
+            }
+            if (debugChannel != null){
+                debugChannel.sendMessage(sb.toString()).queue();
+            }
+        }else {
+            System.out.println("No Master Channels found");
+        }
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
             public void run() {
@@ -51,8 +76,6 @@ public class HandleChannelMovement extends ListenerAdapter {
     @Override
     public void onMessageReceived(MessageReceivedEvent event)
     {
-        //TODO Clear Command
-        //TODO Remove Command
         Message message = event.getMessage();
         MessageChannel channel = event.getChannel();
         String content = message.getContentRaw();
@@ -124,6 +147,8 @@ public class HandleChannelMovement extends ListenerAdapter {
                             tmpMasterChannelList.add(vc);
                             tmpChannelCount.put(vc,0);
                             masterNames.put(vc,vc.getName());
+                            recreateTmpChannels(event.getGuild());
+                            saveConfig();
                             channel.sendMessage("Added Master: <#" + channelid +">").queue();
                         }else {
                             channel.sendMessage("Channel not found").queue();
@@ -156,7 +181,8 @@ public class HandleChannelMovement extends ListenerAdapter {
                                 tmpChannelCount.remove(vc);
                                 masterNames.remove(vc);
                                 channel.sendMessage("Removed Master: <#" + channelid +">").queue();
-                                //TODO Clear MasterTmp Channels
+                                saveConfig();
+                                recreateTmpChannels(event.getGuild());
                             }
                             else {
                                 channel.sendMessage("Channel isn't a Master Channel").queue();
@@ -166,6 +192,8 @@ public class HandleChannelMovement extends ListenerAdapter {
                             channel.sendMessage("Channel not found").queue();
                         }
                     }
+                }else {
+                    channel.sendMessage("You are not an Administrator").queue();
                 }
             }
             //_____________________________
@@ -174,10 +202,13 @@ public class HandleChannelMovement extends ListenerAdapter {
             else if (content.startsWith(prefix + "getTmpChannels")){
                 if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
                     StringBuilder sb = new StringBuilder();
+                    sb.append("tmpChannels: \n");
                     for (VoiceChannel vc : tmpChannelList){
                         sb.append("<#").append(vc.getId()).append("> \n");
                     }
                     channel.sendMessage(sb.toString()).queue();
+                }else {
+                    channel.sendMessage("You haven't got enough Permissions").queue();
                 }
             }
             //_____________________________
@@ -186,10 +217,14 @@ public class HandleChannelMovement extends ListenerAdapter {
             else if (content.startsWith(prefix + "getMasters")){
                 if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
                     StringBuilder sb = new StringBuilder();
+                    sb.append("Masters: \n");
                     for (VoiceChannel vc : tmpMasterChannelList){
                         sb.append("<#").append(vc.getId()).append("> \n");
                     }
                     channel.sendMessage(sb.toString()).queue();
+                }
+                else {
+                    channel.sendMessage("You haven't got enough Permissions").queue();
                 }
             }
             //_____________________________
@@ -208,6 +243,7 @@ public class HandleChannelMovement extends ListenerAdapter {
                         TextChannel tc = event.getGuild().getTextChannelById(channelid);
                         if (tc != null){
                             debugChannel = tc;
+                            saveConfig();
                             channel.sendMessage("Debug Channel set to: <#" + channelid +">").queue();
                             tc.sendMessage("This is now the Debug Channel").queue();
                         }
@@ -215,6 +251,47 @@ public class HandleChannelMovement extends ListenerAdapter {
                             channel.sendMessage("Channel not found").queue();
                         }
                     }
+                }
+                else {
+                    channel.sendMessage("You are not an Administrator").queue();
+                }
+            }
+            //_____________________________
+            //Get Debug channel
+            //_____________________________
+            else if (content.startsWith(prefix + "getDebugChannel")){
+                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
+                    if (debugChannel != null){
+                        channel.sendMessage("Debug Channel is: <#" + debugChannel.getId() +">").queue();
+                    }
+                    else {
+                        channel.sendMessage("No Debug Channel set").queue();
+                    }
+                }
+                else {
+                    channel.sendMessage("You haven't got enough Permissions").queue();
+                }
+            }
+            //_____________________________
+            //Recreate Tmp-Channels
+            //_____________________________
+            else if (content.startsWith(prefix + "recreateTmpChannels")){
+                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
+                    recreateTmpChannels(event.getGuild());
+                    channel.sendMessage("All Tmp-Channels deleted").queue();
+                }
+                else {
+                    channel.sendMessage("You are not an Administrator").queue();
+                }
+            }
+            //_____________________________
+            //Setup
+            //_____________________________
+            else if (content.startsWith(prefix + "setup")){
+                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
+                    guild = event.getGuild();
+                    saveConfig();
+                    channel.sendMessage("Setup done").queue();
                 }
             }
         }
@@ -243,10 +320,10 @@ public class HandleChannelMovement extends ListenerAdapter {
         if (usersInVC == 1){
             if (tmpChannelList.contains(vc)){
                 VoiceChannel master = tmpChannelMapMaster.get(vc);
-                createTmpChannel(event.getGuild(), masterNames.get(master),tmpChannelCount.get(master)+1,vc.getPosition(),vc.getUserLimit(),master,vc.getParent());
+                createTmpChannel(event.getGuild(), masterNames.get(master),tmpChannelCount.get(master)+1,vc.getPosition(),vc.getUserLimit(),master,vc.getParent(),vc.getBitrate());
                 tmpChannelCount.put(master,tmpChannelCount.get(master)+1);
             }else if (tmpMasterChannelList.contains(vc) && tmpChannelCount.get(vc) == 0){
-                createTmpChannel(event.getGuild(), vc.getName(),1,vc.getPosition(),vc.getUserLimit(),vc,vc.getParent());
+                createTmpChannel(event.getGuild(), vc.getName(),1,vc.getPosition(),vc.getUserLimit(),vc,vc.getParent(),vc.getBitrate());
                 tmpChannelCount.put(vc,1);
             }
         }
@@ -257,7 +334,6 @@ public class HandleChannelMovement extends ListenerAdapter {
         int usersInVC = vc.getMembers().size();
         if (vc.getMembers().size() <= 0){
             if (tmpChannelList.contains(vc)){
-                tmpChannelList.remove(vc);
                 VoiceChannel master = tmpChannelMapMaster.get(vc);
                 int count = tmpChannelCount.get(master);
                 count--;
@@ -266,11 +342,13 @@ public class HandleChannelMovement extends ListenerAdapter {
                 if (count <= 0){
                     if (!isSomeoneInChannel(master)){
                         deleteChannel(vc);
+                        tmpChannelCount.put(master, 0);
                     }
                 }else if(pos <= count){
                     deleteChannel(vc);
                     tmpChannelCount.put(master, count);
-                    for (VoiceChannel vcTmp : tmpChannelList){
+                    List<VoiceChannel> tmpChannelListClone = new ArrayList<>(tmpChannelList);;
+                    for (VoiceChannel vcTmp : tmpChannelListClone){
                         if (tmpChannelMapMaster.get(vcTmp) == master){
                             if (count == 1 && !isSomeoneInChannel(master)){
                                 tmpChannelCount.put(master, 0);
@@ -284,7 +362,8 @@ public class HandleChannelMovement extends ListenerAdapter {
                     }
                 }
             }else if(tmpMasterChannelList.contains(vc) && tmpChannelCount.get(vc) <= 1){
-                for (VoiceChannel vc2 : tmpChannelList){
+                List<VoiceChannel> tmpChannelListClone = new ArrayList<>(tmpChannelList);
+                for (VoiceChannel vc2 : tmpChannelListClone){
                     if (tmpChannelMapMaster.get(vc2) == vc){
                         deleteChannel(vc2);
                         tmpChannelCount.put(vc, 0);
@@ -299,15 +378,97 @@ public class HandleChannelMovement extends ListenerAdapter {
     }
 
     public void deleteChannel(VoiceChannel vc){
+        tmpChannelList.remove(vc);
+        tmpChannelMapMaster.remove(vc);
         vc.delete().reason("TMP Voice no longer Required").queue();
     }
 
-    public void createTmpChannel(Guild guild, String name, int num, int pos, int memberCount, VoiceChannel master, Category category){
-        VoiceChannel vc  = guild.createVoiceChannel("⏰;"+num+";"+name).setParent(category).setPosition(pos).setUserlimit(memberCount).complete();
-        //TODO Bitrate
-        //TODO Rechte
+    public void createTmpChannel(Guild guild, String name, int num, int pos, int memberCount, VoiceChannel master, Category category, int bitrate){
+        VoiceChannel vc = guild.createVoiceChannel("⏰;"+num+";"+name).setParent(category).setPosition(pos-num+1).setUserlimit(memberCount).setBitrate(bitrate).complete();
         tmpChannelList.add(vc);
         tmpChannelMapMaster.put(vc, master);
+    }
+
+    public void recreateTmpChannels(Guild guild){
+        deleteAllTmpChannels(guild);
+        checkMasterChannels();
+    }
+
+    public void deleteAllTmpChannels(Guild guild){
+        guild.getVoiceChannels().forEach(vc -> {
+            if (vc.getName().startsWith("⏰")){
+                deleteChannel(vc);
+            }
+        });
+    }
+
+    public void checkMasterChannels(){
+        for (VoiceChannel vc : tmpMasterChannelList){
+            if (vc.getMembers().size() > 0){
+                createTmpChannel(vc.getGuild(), vc.getName(),1,vc.getPosition(),vc.getUserLimit(),vc,vc.getParent(),vc.getBitrate());
+                tmpChannelCount.put(vc,1);
+            }
+        }
+    }
+
+    public void saveConfig(){
+        try {
+            FileWriter fw = new FileWriter("config.cfg", false);
+            if (guild != null){
+                fw.write("GuildId:");
+                fw.write( guild.getId()+ "\n");
+            }
+            if (debugChannel != null){
+                fw.write("DebugChannelId:");
+                fw.write(debugChannel.getId() + "\n");
+            }
+            if (tmpMasterChannelList.size() > 0){
+                fw.write("MasterChannels:");
+                for (VoiceChannel vc : tmpMasterChannelList){
+                    fw.write(vc.getId()+";");
+                }
+            }
+            fw.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    //read config
+    public void readConfig(){
+        try {
+            FileReader fr = new FileReader("config.cfg");
+            BufferedReader br = new BufferedReader(fr);
+            String line = br.readLine();
+            while (line != null){
+                if (line.startsWith("GuildId:")){
+                    guild = jda.getGuildById(line.split(":")[1]);
+                }else if (line.startsWith("DebugChannelId:")){
+                    debugChannel = jda.getTextChannelById(line.split(":")[1]);
+                }else if (line.startsWith("MasterChannels:")){
+                    String[] tmp = line.split(":")[1].split(";");
+                    for (String s : tmp){
+                        if (!s.equals("")){
+                            VoiceChannel vc = jda.getVoiceChannelById(s);
+                            if (vc != null){
+                                tmpMasterChannelList.add(vc);
+                                tmpChannelCount.put(vc,0);
+                                masterNames.put(vc,vc.getName());
+                            }else{
+                                System.err.println("MasterChannel not found: " + s + " deleted it from config");
+                            }
+                        }
+                    }
+                }
+                line = br.readLine();
+            }
+            br.close();
+            saveConfig();
+        } catch (FileNotFoundException e){
+            System.err.println("No Config File found");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 
