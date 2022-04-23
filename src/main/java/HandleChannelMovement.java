@@ -1,11 +1,11 @@
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent;
+import net.dv8tion.jda.api.events.Event;
+import net.dv8tion.jda.api.events.guild.voice.*;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.EventListener;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceJoinEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,6 +18,8 @@ public class HandleChannelMovement extends ListenerAdapter {
     JDA jda;
     final static String prefix = ">";
     Random rand;
+    TextChannel debugChannel = null;
+
     ArrayList<VoiceChannel> tmpChannelList = new ArrayList<>();
     HashMap<VoiceChannel,VoiceChannel> tmpChannelMapMaster = new HashMap<>();
     HashMap<VoiceChannel,Integer> tmpChannelCount = new HashMap<>();
@@ -36,6 +38,14 @@ public class HandleChannelMovement extends ListenerAdapter {
         //TODO delete every temp Channel
         //TODO Create Tmp Channels if someone is in
         //TODO Restore Masters
+
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+                if (debugChannel != null) {
+                    debugChannel.sendMessage("Bot Shutting down").complete();
+                }
+            }
+        });
     }
 
     @Override
@@ -59,7 +69,6 @@ public class HandleChannelMovement extends ListenerAdapter {
             //ProfilePic
             //-----------------------------
             else if (content.equalsIgnoreCase(prefix + "myPicture")){
-                System.out.println("PIC");
                 if (user.getAvatarUrl() != null){
                     channel.sendMessage(user.getAvatarUrl()).queue();
                 }else {
@@ -90,7 +99,6 @@ public class HandleChannelMovement extends ListenerAdapter {
                 try {
                     arguments = content.substring(6);
                 } catch (Exception ignore){}
-                System.out.println("test"+arguments);
                 if (arguments.equals("")){
                     channel.sendMessage("Please give Arguments").queue();
                     return;
@@ -127,34 +135,129 @@ public class HandleChannelMovement extends ListenerAdapter {
                     channel.sendMessage("You are not an Administrator").queue();
                 }
             }
-        }
-    }
-
-    @Override
-    public void onGuildVoiceJoin(GuildVoiceJoinEvent event){
-        VoiceChannel vc = event.getChannelJoined();
-        int usersInVC = vc.getMembers().size();
-        if (usersInVC == 1){
-            if (tmpChannelList.contains(vc)){
-                VoiceChannel master = tmpChannelMapMaster.get(vc);
-                createTmpChannel(event.getGuild(), masterNames.get(master),tmpChannelCount.get(master)+1,vc.getPosition()+1,vc.getUserLimit(),master,vc.getParent());
-                tmpChannelCount.put(master,tmpChannelCount.get(master)+1);
-            }else if (tmpMasterChannelList.contains(vc) && tmpChannelCount.get(vc) == 0){
-                System.out.println("Create Channel");
-                createTmpChannel(event.getGuild(), vc.getName(),1,vc.getPosition()+1,vc.getUserLimit(),vc,vc.getParent());
-                tmpChannelCount.put(vc,1);
+            //_____________________________
+            //Remove Master
+            //_____________________________
+            else if (content.startsWith(prefix + "removeMaster")){
+                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
+                    long channelid = -1L;
+                    try {
+                        channelid = Long.parseLong(content.substring(13+prefix.length()));
+                    }
+                    catch (Exception ignore){
+                        channel.sendMessage("No valid Channel-ID provided").queue();
+                        return;
+                    }
+                    if(channelid != -1L){
+                        VoiceChannel vc = (VoiceChannel) event.getGuild().getGuildChannelById(ChannelType.VOICE,channelid);
+                        if (vc != null){
+                            if (tmpMasterChannelList.contains(vc)){
+                                tmpMasterChannelList.remove(vc);
+                                tmpChannelCount.remove(vc);
+                                masterNames.remove(vc);
+                                channel.sendMessage("Removed Master: <#" + channelid +">").queue();
+                                //TODO Clear MasterTmp Channels
+                            }
+                            else {
+                                channel.sendMessage("Channel isn't a Master Channel").queue();
+                            }
+                        }
+                        else {
+                            channel.sendMessage("Channel not found").queue();
+                        }
+                    }
+                }
+            }
+            //_____________________________
+            //Get TmpChannels
+            //_____________________________
+            else if (content.startsWith(prefix + "getTmpChannels")){
+                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
+                    StringBuilder sb = new StringBuilder();
+                    for (VoiceChannel vc : tmpChannelList){
+                        sb.append("<#").append(vc.getId()).append("> \n");
+                    }
+                    channel.sendMessage(sb.toString()).queue();
+                }
+            }
+            //_____________________________
+            //Get Masters
+            //_____________________________
+            else if (content.startsWith(prefix + "getMasters")){
+                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
+                    StringBuilder sb = new StringBuilder();
+                    for (VoiceChannel vc : tmpMasterChannelList){
+                        sb.append("<#").append(vc.getId()).append("> \n");
+                    }
+                    channel.sendMessage(sb.toString()).queue();
+                }
+            }
+            //_____________________________
+            //Set Debug channel
+            //_____________________________
+            else if (content.startsWith(prefix + "setDebugChannel")){
+                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
+                    long channelid = -1L;
+                    try {
+                        channelid = Long.parseLong(content.substring(16+prefix.length()));
+                    } catch (Exception ignore){
+                        channel.sendMessage("No valid Channel-ID provided").queue();
+                        return;
+                    }
+                    if(channelid != -1L){
+                        TextChannel tc = event.getGuild().getTextChannelById(channelid);
+                        if (tc != null){
+                            debugChannel = tc;
+                            channel.sendMessage("Debug Channel set to: <#" + channelid +">").queue();
+                            tc.sendMessage("This is now the Debug Channel").queue();
+                        }
+                        else {
+                            channel.sendMessage("Channel not found").queue();
+                        }
+                    }
+                }
             }
         }
     }
 
     @Override
+    public void onGuildVoiceJoin(GuildVoiceJoinEvent event){
+        handleJoin(event);
+    }
+
+    @Override
     public void onGuildVoiceLeave(@NotNull GuildVoiceLeaveEvent event) {
+        handleLeft(event);
+    }
+
+    @Override
+    public void onGuildVoiceMove(@NotNull GuildVoiceMoveEvent event) {
+        System.out.println("Moved from "+event.getChannelLeft().getName() + " to "+event.getChannelJoined().getName());
+        handleJoin(event);
+        handleLeft(event);
+    }
+
+    public void handleJoin(GenericGuildVoiceUpdateEvent event){
+        VoiceChannel vc = event.getChannelJoined();
+        int usersInVC = vc.getMembers().size();
+        if (usersInVC == 1){
+            if (tmpChannelList.contains(vc)){
+                VoiceChannel master = tmpChannelMapMaster.get(vc);
+                createTmpChannel(event.getGuild(), masterNames.get(master),tmpChannelCount.get(master)+1,vc.getPosition(),vc.getUserLimit(),master,vc.getParent());
+                tmpChannelCount.put(master,tmpChannelCount.get(master)+1);
+            }else if (tmpMasterChannelList.contains(vc) && tmpChannelCount.get(vc) == 0){
+                createTmpChannel(event.getGuild(), vc.getName(),1,vc.getPosition(),vc.getUserLimit(),vc,vc.getParent());
+                tmpChannelCount.put(vc,1);
+            }
+        }
+    }
+
+    public void handleLeft(GenericGuildVoiceUpdateEvent event){
         VoiceChannel vc = event.getChannelLeft();
         int usersInVC = vc.getMembers().size();
         if (vc.getMembers().size() <= 0){
             if (tmpChannelList.contains(vc)){
                 tmpChannelList.remove(vc);
-                System.out.println(event.getGuild().getChannels().get(vc.getPosition()).getName());
                 VoiceChannel master = tmpChannelMapMaster.get(vc);
                 int count = tmpChannelCount.get(master);
                 count--;
@@ -197,16 +300,15 @@ public class HandleChannelMovement extends ListenerAdapter {
 
     public void deleteChannel(VoiceChannel vc){
         vc.delete().reason("TMP Voice no longer Required").queue();
-        System.out.println("Deleted channel: "+ vc.getName());
     }
 
     public void createTmpChannel(Guild guild, String name, int num, int pos, int memberCount, VoiceChannel master, Category category){
-        guild.createVoiceChannel("⏰;"+num+";"+name).setParent(category).setPosition(pos).setUserlimit(memberCount).queue((voiceChannel) -> {
-            tmpChannelList.add(voiceChannel);
-            tmpChannelMapMaster.put(voiceChannel, master);
-        });
-        System.out.println("Created channel: "+ "⏰;"+num+";"+name);
+        VoiceChannel vc  = guild.createVoiceChannel("⏰;"+num+";"+name).setParent(category).setPosition(pos).setUserlimit(memberCount).complete();
+        //TODO Bitrate
+        //TODO Rechte
+        tmpChannelList.add(vc);
+        tmpChannelMapMaster.put(vc, master);
     }
 
-    //TODO fix on channel change
+
 }
