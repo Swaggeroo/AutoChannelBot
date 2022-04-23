@@ -1,4 +1,5 @@
 # AutoChannelBot
+A Discord bot that ensures that there is always a free voice channel in the server.
 ## Features
 Creates for specified voice channels a new channel with the same name when someone joins, so that you always have a free channel to talk in.
 
