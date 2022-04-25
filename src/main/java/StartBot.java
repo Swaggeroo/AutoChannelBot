@@ -21,6 +21,7 @@ public abstract class StartBot extends ListenerAdapter {
         }
 
         System.out.println("Bot starting");
+        System.out.println("Test");
         //JDA(Bot) initialisieren
         JDA jda = JDABuilder.create(key,
                         GatewayIntent.GUILD_MESSAGES,
