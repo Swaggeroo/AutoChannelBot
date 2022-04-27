@@ -294,6 +294,19 @@ public class HandleChannelMovement extends ListenerAdapter {
                     channel.sendMessage("Setup done").queue();
                 }
             }
+            //_____________________________
+            // Zahlen Addieren
+            //_____________________________
+            else if (content.equalsIgnoreCase(prefix + "add")){
+                channel.sendMessage("Welche Werte sollen addiert werden? a+b").queue();
+                String aufgabe = message.getContentRaw();
+                String [] zahlen = aufgabe.split(String.valueOf('+'));
+                int sum = 0;
+                for(int i = zahlen.length; i <= 0; i--){
+                    sum = sum + Integer.parseInt(zahlen[i]);
+                }
+                channel.sendMessage("Das Ergebnis ist " + sum);
+            }
         }
     }
 
