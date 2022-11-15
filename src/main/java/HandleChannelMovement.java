@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.Command;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.restaction.ChannelAction;
 import org.jetbrains.annotations.NotNull;
@@ -85,8 +86,7 @@ public class HandleChannelMovement extends ListenerAdapter {
     }
 
     @Override
-    public void onMessageReceived(MessageReceivedEvent event)
-    {
+    public void onMessageReceived(MessageReceivedEvent event) {
         Message message = event.getMessage();
         MessageChannel channel = event.getChannel();
         String content = message.getContentRaw();
@@ -94,40 +94,9 @@ public class HandleChannelMovement extends ListenerAdapter {
         Member member = event.getMember();
         if (!event.isFromType(ChannelType.PRIVATE) && !user.isBot()){
             //_____________________________
-            // Magische Miesmuschel
-            //_____________________________
-            if (content.equalsIgnoreCase(prefix + "miesmuschel")){
-                int antwortType = rand.nextInt(3);
-                if (antwortType == 0){
-                    //positive Antwort
-                    channel.sendMessage(positiveAntworten[rand.nextInt(positiveAntworten.length)]).queue();
-                }else if (antwortType == 1){
-                    //neutrale Antwort
-                    channel.sendMessage(neutraleAntworten[rand.nextInt(neutraleAntworten.length)]).queue();
-                }else {
-                    //negative Antwort
-                    channel.sendMessage(negativeAntworten[rand.nextInt(negativeAntworten.length)]).queue();
-                }
-            }
-            //_____________________________
-            // Random Antwort
-            //_____________________________
-            else if (content.toLowerCase().startsWith(prefix + "rand")){
-                String arguments = "";
-                try {
-                    arguments = content.substring(6);
-                } catch (Exception ignore){}
-                if (arguments.equals("")){
-                    channel.sendMessage("Please give Arguments").queue();
-                    return;
-                }
-                String[] auswahl = arguments.split(",");
-                channel.sendMessage(auswahl[rand.nextInt(auswahl.length)]).queue();
-            }
-            //_____________________________
             //Add Master
             //_____________________________
-            else if (content.startsWith(prefix + "addMaster")){
+            if (content.startsWith(prefix + "addMaster")){
                 if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
                     long channelid = -1L;
                     try {
@@ -279,16 +248,6 @@ public class HandleChannelMovement extends ListenerAdapter {
                     channel.sendMessage("You are not an Administrator").queue();
                 }
             }
-            //_____________________________
-            //Setup
-            //_____________________________
-            else if (content.startsWith(prefix + "setup")){
-                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
-                    guild = event.getGuild();
-                    saveConfig();
-                    channel.sendMessage("Setup done").queue();
-                }
-            }
         }
     }
 
@@ -315,14 +274,72 @@ public class HandleChannelMovement extends ListenerAdapter {
     @Override
     public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
         User user = event.getUser();
+        String command = event.getName();
 
-        if (event.getName().equals("ping")){
+        //_____________________________
+        //Ping
+        //_____________________________
+        if (command.equals("ping")){
             event.reply("Pong!").queue();
-        } else if (event.getName().equals("mypicture")) {
+        }
+
+        //_____________________________
+        //mypicture
+        //_____________________________
+        else if (command.equals("mypicture")) {
             if (user.getAvatarUrl() != null){
                 event.reply(user.getAvatarUrl()).queue();
             }else {
                 event.reply("No Profile Picture found").queue();
+            }
+        }
+
+        //_____________________________
+        //miesmuschel
+        //_____________________________
+        else if (command.equals("miesmuschel")){
+            int antwortType = rand.nextInt(3);
+            if (antwortType == 0){
+                //positive Antwort
+                event.reply(positiveAntworten[rand.nextInt(positiveAntworten.length)]).queue();
+            }else if (antwortType == 1){
+                //neutrale Antwort
+                event.reply(neutraleAntworten[rand.nextInt(neutraleAntworten.length)]).queue();
+            }else {
+                //negative Antwort
+                event.reply(negativeAntworten[rand.nextInt(negativeAntworten.length)]).queue();
+            }
+        }
+
+        //_____________________________
+        //random
+        //_____________________________
+        else if (command.equals("rand")) {
+            String arguments = event.getOption("options") != null ? event.getOption("options").getAsString() : "";
+            if (arguments.equals("")){
+                event.reply("No Options provided").queue();
+                return;
+            }
+            String[] auswahl = arguments.split(",");
+            event.reply(auswahl[rand.nextInt(auswahl.length)]).queue();
+        }
+
+        else if (command.equals("setup") && !event.isFromGuild()){
+            event.reply("You have to be on an Server").queue();
+        }
+
+        //_____________________________
+        //Guild Commands
+        //_____________________________
+        else if (event.isFromGuild()){
+            //_____________________________
+            //Setup
+            //_____________________________
+            if (command.equals("setup")){
+                guild = event.getGuild();
+                saveConfig();
+                addGuildSlashCommands();
+                event.reply("Setup done").queue();
             }
         }
         super.onSlashCommandInteraction(event);
@@ -461,6 +478,9 @@ public class HandleChannelMovement extends ListenerAdapter {
             while (line != null){
                 if (line.startsWith("GuildId:")){
                     guild = jda.getGuildById(line.split(":")[1]);
+                    if (guild != null){
+                        addGuildSlashCommands();
+                    }
                 }else if (line.startsWith("DebugChannelId:")){
                     debugChannel = jda.getTextChannelById(line.split(":")[1]);
                 }else if (line.startsWith("MasterChannels:")){
@@ -492,20 +512,41 @@ public class HandleChannelMovement extends ListenerAdapter {
     public void addGlobalSlashCommands(){
         //check if command exists
         List<Command> commands = jda.retrieveCommands().complete();
-        final String[] commandNames = {"ping","myPicture"};
+        final String[] commandNames = {"ping","myPicture","miesmuschel","rand","setup"};
         int complete = 0;
         for (Command c : commands){
             if (Arrays.binarySearch(commandNames,c.getName()) >= 0){
                 complete++;
             }
         }
-        if (complete != commandNames.length){
+        if (complete >= commandNames.length){
             //add commands
             jda.updateCommands().addCommands(
                     Commands.slash("ping", "Ping the bot"),
-                    Commands.slash("mypicture", "Get your profile picture")
+                    Commands.slash("mypicture", "Get your profile picture"),
+                    Commands.slash("miesmuschel", "Ask the magic miesmuschel"),
+                    Commands.slash("rand", "Get a random Answer of the given Options")
+                            .addOption(OptionType.STRING, "options", "The Options you want to choose from (Comma Seperated)", true),
+                    Commands.slash("setup", "Run this on your Server for Setup")
             ).queue();
         }
     }
 
+    public void addGuildSlashCommands(){
+        //check if command exists
+        List<Command> commands = jda.retrieveCommands().complete();
+        final String[] commandNames = {};
+        int complete = 0;
+        for (Command c : commands){
+            if (Arrays.binarySearch(commandNames,c.getName()) >= 0){
+                complete++;
+            }
+        }
+        if (complete >= commandNames.length){
+            //add commands
+            guild.updateCommands().addCommands(
+                    //Commands.slash("ping", "Ping the bot")
+            ).queue();
+        }
+    }
 }
