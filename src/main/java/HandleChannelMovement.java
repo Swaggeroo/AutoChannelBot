@@ -3,6 +3,7 @@ import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.Category;
+import net.dv8tion.jda.api.entities.channel.concrete.PrivateChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
@@ -11,6 +12,8 @@ import net.dv8tion.jda.api.events.guild.voice.*;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.commands.Command;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.restaction.ChannelAction;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,6 +41,7 @@ public class HandleChannelMovement extends ListenerAdapter {
 
     public HandleChannelMovement(JDA jda) {
         this.jda = jda;
+        addGlobalSlashCommands();
         rand = new Random();
         readConfig();
         if (debugChannel != null){
@@ -90,25 +94,9 @@ public class HandleChannelMovement extends ListenerAdapter {
         Member member = event.getMember();
         if (!event.isFromType(ChannelType.PRIVATE) && !user.isBot()){
             //_____________________________
-            //Ping
-            //-----------------------------
-            if (content.equalsIgnoreCase(prefix + "ping")){
-                channel.sendMessage("Pong").queue();
-            }
-            //_____________________________
-            //ProfilePic
-            //-----------------------------
-            else if (content.equalsIgnoreCase(prefix + "myPicture")){
-                if (user.getAvatarUrl() != null){
-                    channel.sendMessage(user.getAvatarUrl()).queue();
-                }else {
-                    channel.sendMessage("Dieser Benutzer hat kein Profilbild").queue();
-                }
-            }
-            //_____________________________
             // Magische Miesmuschel
             //_____________________________
-            else if (content.equalsIgnoreCase(prefix + "miesmuschel")){
+            if (content.equalsIgnoreCase(prefix + "miesmuschel")){
                 int antwortType = rand.nextInt(3);
                 if (antwortType == 0){
                     //positive Antwort
@@ -324,6 +312,22 @@ public class HandleChannelMovement extends ListenerAdapter {
         super.onGuildVoiceUpdate(event);
     }
 
+    @Override
+    public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
+        User user = event.getUser();
+
+        if (event.getName().equals("ping")){
+            event.reply("Pong!").queue();
+        } else if (event.getName().equals("mypicture")) {
+            if (user.getAvatarUrl() != null){
+                event.reply(user.getAvatarUrl()).queue();
+            }else {
+                event.reply("No Profile Picture found").queue();
+            }
+        }
+        super.onSlashCommandInteraction(event);
+    }
+
     public void handleJoin(GuildVoiceUpdateEvent event){
         if (event.getChannelJoined() != null){
             VoiceChannel vc = event.getChannelJoined().asVoiceChannel();
@@ -485,5 +489,23 @@ public class HandleChannelMovement extends ListenerAdapter {
         }
     }
 
+    public void addGlobalSlashCommands(){
+        //check if command exists
+        List<Command> commands = jda.retrieveCommands().complete();
+        final String[] commandNames = {"ping","myPicture"};
+        int complete = 0;
+        for (Command c : commands){
+            if (Arrays.binarySearch(commandNames,c.getName()) >= 0){
+                complete++;
+            }
+        }
+        if (complete != commandNames.length){
+            //add commands
+            jda.updateCommands().addCommands(
+                    Commands.slash("ping", "Ping the bot"),
+                    Commands.slash("mypicture", "Get your profile picture")
+            ).queue();
+        }
+    }
 
 }
