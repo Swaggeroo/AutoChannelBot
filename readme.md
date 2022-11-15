@@ -16,7 +16,7 @@ You need Java 15 or higher
 1. Download the jar in the [release section](https://github.com/Swaggeroo/AutoChannelBot/releases/latest) or clone the repository and compile it yourself.
 2. Create a secret.txt with your bot token in the same folder as the jar
 3. ```java -jar AutoChannelBot.jar```
-4. send the `>setup` command to ensure that the bot is working correctly
+4. send the `/setup` command to ensure that the bot is working correctly
 
 ## Usage
 Setup the bot\
