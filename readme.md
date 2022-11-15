@@ -20,38 +20,38 @@ You need Java 15 or higher
 
 ## Usage
 Setup the bot\
-```>setup```
+```/setup```
 
 Set Debug Channel\
-``>setDebugChannel <channelid>``
+``/setDebugChannel <channel>``
 
 Get Debug Channel\
-``>getDebugChannel``
+``/getDebugChannel``
 ### AutoChannel
 Add Master Channel\
-``>addMaster <channelid>``
+``/addMaster <channel>``
 
 Remove Master Channel\
-``>removeMaster <channelid>``
+``/removeMaster <channel>``
 
 List all current Tmp-Channels\
-``>getTmpChannels``
+``/getTmpChannels``
 
 List all current Master-Channels\
-``>getMasters``
+``/getMasters``
 
 Recreate Tmp-Channels\
-``>recreateTmpChannels``
+``/recreateTmpChannels``
 
 ### Nice to have features
 Ping command\
-``>ping``
+``/ping``
 
 Get Profile Picture\
-``>myPicture``
+``/myPicture``
 
 Magic Conch Shell\
-``>Miesmuschel``
+``/Miesmuschel``
 
 Random Answer\
-``>rand <Arg> <Arg> <Arg> ...``
+``/rand <Arg>,<Arg>,<Arg>,...``
