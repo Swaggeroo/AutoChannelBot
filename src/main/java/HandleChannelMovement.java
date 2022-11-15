@@ -1,6 +1,7 @@
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.channel.Channel;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.Category;
 import net.dv8tion.jda.api.entities.channel.concrete.PrivateChannel;
@@ -86,172 +87,6 @@ public class HandleChannelMovement extends ListenerAdapter {
     }
 
     @Override
-    public void onMessageReceived(MessageReceivedEvent event) {
-        Message message = event.getMessage();
-        MessageChannel channel = event.getChannel();
-        String content = message.getContentRaw();
-        User user = event.getAuthor();
-        Member member = event.getMember();
-        if (!event.isFromType(ChannelType.PRIVATE) && !user.isBot()){
-            //_____________________________
-            //Add Master
-            //_____________________________
-            if (content.startsWith(prefix + "addMaster")){
-                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
-                    long channelid = -1L;
-                    try {
-                        channelid = Long.parseLong(content.substring(10+prefix.length()));
-                    } catch (Exception ignore){
-                        channel.sendMessage("No valid Channel-ID provided").queue();
-                        return;
-                    }
-                    if(channelid != -1L){
-                        VoiceChannel vc = (VoiceChannel) event.getGuild().getGuildChannelById(ChannelType.VOICE,channelid);
-                        if (vc != null){
-                            tmpMasterChannelList.add(vc);
-                            tmpChannelCount.put(vc,0);
-                            masterNames.put(vc,vc.getName());
-                            recreateTmpChannels(event.getGuild());
-                            saveConfig();
-                            channel.sendMessage("Added Master: <#" + channelid +">").queue();
-                        }else {
-                            channel.sendMessage("Channel not found").queue();
-                        }
-                    }else {
-                        channel.sendMessage("Channel not found").queue();
-                    }
-                }else {
-                    channel.sendMessage("You are not an Administrator").queue();
-                }
-            }
-            //_____________________________
-            //Remove Master
-            //_____________________________
-            else if (content.startsWith(prefix + "removeMaster")){
-                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
-                    long channelid = -1L;
-                    try {
-                        channelid = Long.parseLong(content.substring(13+prefix.length()));
-                    }
-                    catch (Exception ignore){
-                        channel.sendMessage("No valid Channel-ID provided").queue();
-                        return;
-                    }
-                    if(channelid != -1L){
-                        VoiceChannel vc = (VoiceChannel) event.getGuild().getGuildChannelById(ChannelType.VOICE,channelid);
-                        if (vc != null){
-                            if (tmpMasterChannelList.contains(vc)){
-                                tmpMasterChannelList.remove(vc);
-                                tmpChannelCount.remove(vc);
-                                masterNames.remove(vc);
-                                channel.sendMessage("Removed Master: <#" + channelid +">").queue();
-                                saveConfig();
-                                recreateTmpChannels(event.getGuild());
-                            }
-                            else {
-                                channel.sendMessage("Channel isn't a Master Channel").queue();
-                            }
-                        }
-                        else {
-                            channel.sendMessage("Channel not found").queue();
-                        }
-                    }
-                }else {
-                    channel.sendMessage("You are not an Administrator").queue();
-                }
-            }
-            //_____________________________
-            //Get TmpChannels
-            //_____________________________
-            else if (content.startsWith(prefix + "getTmpChannels")){
-                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("tmpChannels: \n");
-                    for (VoiceChannel vc : tmpChannelList){
-                        sb.append("<#").append(vc.getId()).append("> \n");
-                    }
-                    channel.sendMessage(sb.toString()).queue();
-                }else {
-                    channel.sendMessage("You haven't got enough Permissions").queue();
-                }
-            }
-            //_____________________________
-            //Get Masters
-            //_____________________________
-            else if (content.startsWith(prefix + "getMasters")){
-                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("Masters: \n");
-                    for (VoiceChannel vc : tmpMasterChannelList){
-                        sb.append("<#").append(vc.getId()).append("> \n");
-                    }
-                    channel.sendMessage(sb.toString()).queue();
-                }
-                else {
-                    channel.sendMessage("You haven't got enough Permissions").queue();
-                }
-            }
-            //_____________________________
-            //Set Debug channel
-            //_____________________________
-            else if (content.startsWith(prefix + "setDebugChannel")){
-                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
-                    long channelid = -1L;
-                    try {
-                        channelid = Long.parseLong(content.substring(16+prefix.length()));
-                    } catch (Exception ignore){
-                        channel.sendMessage("No valid Channel-ID provided").queue();
-                        return;
-                    }
-                    if(channelid != -1L){
-                        TextChannel tc = event.getGuild().getTextChannelById(channelid);
-                        if (tc != null){
-                            debugChannel = tc;
-                            saveConfig();
-                            channel.sendMessage("Debug Channel set to: <#" + channelid +">").queue();
-                            tc.sendMessage("This is now the Debug Channel").queue();
-                        }
-                        else {
-                            channel.sendMessage("Channel not found").queue();
-                        }
-                    }
-                }
-                else {
-                    channel.sendMessage("You are not an Administrator").queue();
-                }
-            }
-            //_____________________________
-            //Get Debug channel
-            //_____________________________
-            else if (content.startsWith(prefix + "getDebugChannel")){
-                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
-                    if (debugChannel != null){
-                        channel.sendMessage("Debug Channel is: <#" + debugChannel.getId() +">").queue();
-                    }
-                    else {
-                        channel.sendMessage("No Debug Channel set").queue();
-                    }
-                }
-                else {
-                    channel.sendMessage("You haven't got enough Permissions").queue();
-                }
-            }
-            //_____________________________
-            //Recreate Tmp-Channels
-            //_____________________________
-            else if (content.startsWith(prefix + "recreateTmpChannels")){
-                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
-                    recreateTmpChannels(event.getGuild());
-                    channel.sendMessage("All Tmp-Channels deleted").queue();
-                }
-                else {
-                    channel.sendMessage("You are not an Administrator").queue();
-                }
-            }
-        }
-    }
-
-    @Override
     public void onGuildVoiceUpdate(@NotNull GuildVoiceUpdateEvent event) {
         //if left
         if (event.getChannelLeft() != null && event.getChannelJoined() == null){
@@ -315,7 +150,7 @@ public class HandleChannelMovement extends ListenerAdapter {
         //random
         //_____________________________
         else if (command.equals("rand")) {
-            String arguments = event.getOption("options") != null ? event.getOption("options").getAsString() : "";
+            String arguments =  event.getOption("options").getAsString();
             if (arguments.equals("")){
                 event.reply("No Options provided").queue();
                 return;
@@ -332,6 +167,7 @@ public class HandleChannelMovement extends ListenerAdapter {
         //Guild Commands
         //_____________________________
         else if (event.isFromGuild()){
+            Member member = event.getMember();
             //_____________________________
             //Setup
             //_____________________________
@@ -340,6 +176,143 @@ public class HandleChannelMovement extends ListenerAdapter {
                 saveConfig();
                 addGuildSlashCommands();
                 event.reply("Setup done").queue();
+            }
+
+            //_____________________________
+            //Add Master
+            //_____________________________
+            else if (command.equals("addmaster")){
+                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
+                    Channel channel = event.getOption("channel").getAsChannel();
+                    if (channel.getType() == ChannelType.VOICE){
+                        VoiceChannel vc = event.getOption("channel").getAsChannel().asVoiceChannel();
+                        if (!tmpMasterChannelList.contains(vc)){
+                            tmpMasterChannelList.add(vc);
+                            tmpChannelCount.put(vc,0);
+                            masterNames.put(vc,vc.getName());
+                            recreateTmpChannels(event.getGuild());
+                            saveConfig();
+                            event.reply("Added <#" + vc.getId() + "> as Master Channel").queue();
+                        }else {
+                            event.reply("<#" + vc.getId() + "> is already a Master Channel").queue();
+                        }
+                    }else {
+                        event.reply("Channel is not a Voice Channel").queue();
+                    }
+                }else {
+                    event.reply("You are not an Administrator").queue();
+                }
+            }
+
+            //_____________________________
+            //Remove Master
+            //_____________________________
+            else if (command.equals("removemaster")){
+                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
+                    Channel channel = event.getOption("channel").getAsChannel();
+                    if (channel.getType() == ChannelType.VOICE){
+                        VoiceChannel vc = event.getOption("channel").getAsChannel().asVoiceChannel();
+                        if (tmpMasterChannelList.contains(vc)){
+                            tmpMasterChannelList.remove(vc);
+                            tmpChannelCount.remove(vc);
+                            masterNames.remove(vc);
+                            event.reply("Removed <#" + vc.getId() + "> as Master Channel").queue();
+                            saveConfig();
+                            recreateTmpChannels(event.getGuild());
+                        }
+                        else {
+                            event.reply("Channel is not a Master Channel").queue();
+                        }
+                    }else {
+                        event.reply("Channel is not a Voice Channel").queue();
+                    }
+                }else {
+                    event.reply("You are not an Administrator").queue();
+                }
+            }
+
+            //_____________________________
+            //Get TmpChannels
+            //_____________________________
+            else if (command.equals( "gettmpchannels")){
+                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("tmpChannels: \n");
+                    for (VoiceChannel vc : tmpChannelList){
+                        sb.append("<#").append(vc.getId()).append("> \n");
+                    }
+                    event.reply(sb.toString()).queue();
+                }else {
+                    event.reply("You haven't got enough Permissions").queue();
+                }
+            }
+
+            //_____________________________
+            //Get Masters
+            //_____________________________
+            else if (command.equals("getmasterchannels")){
+                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Masters: \n");
+                    for (VoiceChannel vc : tmpMasterChannelList){
+                        sb.append("<#").append(vc.getId()).append("> \n");
+                    }
+                    event.reply(sb.toString()).queue();
+                }
+                else {
+                    event.reply("You haven't got enough Permissions").queue();
+                }
+            }
+
+            //_____________________________
+            //Set Debug channel
+            //_____________________________
+            else if (command.equals("setdebugchannel")){
+                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
+                    Channel channel = event.getOption("channel").getAsChannel();
+                    if (channel.getType() == ChannelType.TEXT){
+                        TextChannel tc = event.getOption("channel").getAsChannel().asTextChannel();
+                        debugChannel = tc;
+                        saveConfig();
+                        event.reply("Set <#" + tc.getId() + "> as Debug Channel").queue();
+                        tc.sendMessage("This is now the Debug Channel").queue();
+                    }else {
+                        event.reply("Channel is not a Text Channel").queue();
+                    }
+                }
+                else {
+                    event.reply("You are not an Administrator").queue();
+                }
+            }
+
+            //_____________________________
+            //Get Debug channel
+            //_____________________________
+            else if (command.equals("getdebugchannel")){
+                if (member != null && member.hasPermission(Permission.MANAGE_ROLES)) {
+                    if (debugChannel != null){
+                        event.reply("Debug Channel is <#" + debugChannel.getId() + ">").queue();
+                    }
+                    else {
+                        event.reply("No Debug Channel set\nSet a debug channel with /setdebugchannel").queue();
+                    }
+                }
+                else {
+                    event.reply("You haven't got enough Permissions").queue();
+                }
+            }
+
+            //_____________________________
+            //Recreate Tmp-Channels
+            //_____________________________
+            else if (command.equals("recreatetmpchannels")){
+                if (member != null && member.hasPermission(Permission.ADMINISTRATOR)) {
+                    recreateTmpChannels(event.getGuild());
+                    event.reply("All Tmp-Channels deleted").queue();
+                }
+                else {
+                    event.reply("You are not an Administrator").queue();
+                }
             }
         }
         super.onSlashCommandInteraction(event);
@@ -519,7 +492,7 @@ public class HandleChannelMovement extends ListenerAdapter {
                 complete++;
             }
         }
-        if (complete >= commandNames.length){
+        if (complete < commandNames.length){
             //add commands
             jda.updateCommands().addCommands(
                     Commands.slash("ping", "Ping the bot"),
@@ -534,18 +507,27 @@ public class HandleChannelMovement extends ListenerAdapter {
 
     public void addGuildSlashCommands(){
         //check if command exists
-        List<Command> commands = jda.retrieveCommands().complete();
-        final String[] commandNames = {};
+        List<Command> commands = guild.retrieveCommands().complete();
+        final String[] commandNames = {"addmaster","removemaster","gettmpchannels","getmasterchannels","setdebugchannel","getdebugchannel"};
         int complete = 0;
         for (Command c : commands){
             if (Arrays.binarySearch(commandNames,c.getName()) >= 0){
                 complete++;
             }
         }
-        if (complete >= commandNames.length){
+        if (complete < commandNames.length){
             //add commands
             guild.updateCommands().addCommands(
-                    //Commands.slash("ping", "Ping the bot")
+                    Commands.slash("addmaster", "Adding a Master Channel which will be always available")
+                            .addOption(OptionType.CHANNEL, "channel", "The Channel you want to add", true),
+                    Commands.slash("removemaster", "Removing a Master Channel")
+                            .addOption(OptionType.CHANNEL, "channel", "The Channel you want to remove", true),
+                    Commands.slash("gettmpchannels", "Get a list of all tmp Channels"),
+                    Commands.slash("getmasterchannels", "Get a list of all master Channels"),
+                    Commands.slash("setdebugchannel", "Set the Debug Channel")
+                            .addOption(OptionType.CHANNEL, "channel", "The Channel you want to set", true),
+                    Commands.slash("getdebugchannel", "Get the Debug Channel"),
+                    Commands.slash("recreatetmpchannels", "Recreate all tmp Channels (WARNING: All Members will be kicked from the tmp and Master Channels)")
             ).queue();
         }
     }
