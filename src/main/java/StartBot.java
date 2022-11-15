@@ -27,7 +27,8 @@ public abstract class StartBot extends ListenerAdapter {
                         GatewayIntent.DIRECT_MESSAGES,
                         GatewayIntent.GUILD_PRESENCES,
                         GatewayIntent.GUILD_VOICE_STATES,
-                        GatewayIntent.GUILD_EMOJIS,
+                        GatewayIntent.GUILD_EMOJIS_AND_STICKERS,
+                        GatewayIntent.MESSAGE_CONTENT,
                         GatewayIntent.GUILD_MEMBERS)
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .build()

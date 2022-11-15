@@ -1,7 +1,14 @@
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.entities.channel.concrete.Category;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
+import net.dv8tion.jda.api.events.guild.GuildLeaveEvent;
 import net.dv8tion.jda.api.events.guild.voice.*;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.restaction.ChannelAction;
@@ -298,75 +305,82 @@ public class HandleChannelMovement extends ListenerAdapter {
     }
 
     @Override
-    public void onGuildVoiceJoin(GuildVoiceJoinEvent event){
-        handleJoin(event);
+    public void onGuildVoiceUpdate(@NotNull GuildVoiceUpdateEvent event) {
+        //if left
+        if (event.getChannelLeft() != null && event.getChannelJoined() == null){
+            handleLeft(event);
+        }
+        //if joined
+        else if (event.getChannelLeft() == null && event.getChannelJoined() != null){
+            handleJoin(event);
+        }
+        //if moved
+        else if (event.getChannelLeft() != null && event.getChannelJoined() != null){
+            if (!event.getChannelLeft().equals(event.getChannelJoined())){
+                handleLeft(event);
+                handleJoin(event);
+            }
+        }
+        super.onGuildVoiceUpdate(event);
     }
 
-    @Override
-    public void onGuildVoiceLeave(@NotNull GuildVoiceLeaveEvent event) {
-        handleLeft(event);
-    }
-
-    @Override
-    public void onGuildVoiceMove(@NotNull GuildVoiceMoveEvent event) {
-        System.out.println("Moved from "+event.getChannelLeft().getName() + " to "+event.getChannelJoined().getName());
-        handleJoin(event);
-        handleLeft(event);
-    }
-
-    public void handleJoin(GenericGuildVoiceUpdateEvent event){
-        VoiceChannel vc = event.getChannelJoined();
-        int usersInVC = vc.getMembers().size();
-        if (usersInVC == 1){
-            if (tmpChannelList.contains(vc)){
-                VoiceChannel master = tmpChannelMapMaster.get(vc);
-                createTmpChannel(event.getGuild(), masterNames.get(master),tmpChannelCount.get(master)+1,vc.getPosition(),vc.getUserLimit(),master,vc.getParent(),vc.getBitrate());
-                tmpChannelCount.put(master,tmpChannelCount.get(master)+1);
-            }else if (tmpMasterChannelList.contains(vc) && tmpChannelCount.get(vc) == 0){
-                createTmpChannel(event.getGuild(), vc.getName(),1,vc.getPosition(),vc.getUserLimit(),vc,vc.getParent(),vc.getBitrate());
-                tmpChannelCount.put(vc,1);
+    public void handleJoin(GuildVoiceUpdateEvent event){
+        if (event.getChannelJoined() != null){
+            VoiceChannel vc = event.getChannelJoined().asVoiceChannel();
+            int usersInVC = vc.getMembers().size();
+            if (usersInVC == 1){
+                if (tmpChannelList.contains(vc)){
+                    VoiceChannel master = tmpChannelMapMaster.get(vc);
+                    createTmpChannel(event.getGuild(), masterNames.get(master),tmpChannelCount.get(master)+1,vc.getPosition(),vc.getUserLimit(),master,vc.getParentCategory(),vc.getBitrate());
+                    tmpChannelCount.put(master,tmpChannelCount.get(master)+1);
+                }else if (tmpMasterChannelList.contains(vc) && tmpChannelCount.get(vc) == 0){
+                    createTmpChannel(event.getGuild(), vc.getName(),1,vc.getPosition(),vc.getUserLimit(),vc,vc.getParentCategory(),vc.getBitrate());
+                    tmpChannelCount.put(vc,1);
+                }
             }
         }
     }
 
-    public void handleLeft(GenericGuildVoiceUpdateEvent event){
-        VoiceChannel vc = event.getChannelLeft();
-        int usersInVC = vc.getMembers().size();
-        if (vc.getMembers().size() <= 0){
-            if (tmpChannelList.contains(vc)){
-                VoiceChannel master = tmpChannelMapMaster.get(vc);
-                int count = tmpChannelCount.get(master);
-                count--;
-                String name = vc.getName();
-                int pos = Integer.parseInt(name.split(";")[1]);
-                if (count <= 0){
-                    if (!isSomeoneInChannel(master)){
+    public void handleLeft(GuildVoiceUpdateEvent event){
+        if (event.getChannelLeft() != null){
+            VoiceChannel vc = event.getChannelLeft().asVoiceChannel();
+            int usersInVC = vc.getMembers().size();
+            if (vc.getMembers().size() <= 0){
+                if (tmpChannelList.contains(vc)){
+                    VoiceChannel master = tmpChannelMapMaster.get(vc);
+                    int count = tmpChannelCount.get(master);
+                    count--;
+                    String name = vc.getName();
+                    int pos = Integer.parseInt(name.split(";")[1]);
+                    if (count <= 0){
+                        if (!isSomeoneInChannel(master)){
+                            deleteChannel(vc);
+                            tmpChannelCount.put(master, 0);
+                        }
+                    }else if(pos <= count){
                         deleteChannel(vc);
-                        tmpChannelCount.put(master, 0);
-                    }
-                }else if(pos <= count){
-                    deleteChannel(vc);
-                    tmpChannelCount.put(master, count);
-                    List<VoiceChannel> tmpChannelListClone = new ArrayList<>(tmpChannelList);;
-                    for (VoiceChannel vcTmp : tmpChannelListClone){
-                        if (tmpChannelMapMaster.get(vcTmp) == master){
-                            if (count == 1 && !isSomeoneInChannel(master)){
-                                tmpChannelCount.put(master, 0);
-                                deleteChannel(vcTmp);
-                            }else {
-                                int tmppos = Integer.parseInt(vcTmp.getName().split(";")[1]);
-                                tmppos--;
-                                vcTmp.getManager().setName("⏰;"+tmppos+";"+masterNames.get(master)).queue();
+                        tmpChannelCount.put(master, count);
+                        List<VoiceChannel> tmpChannelListClone = new ArrayList<>(tmpChannelList);;
+                        for (VoiceChannel vcTmp : tmpChannelListClone){
+                            if (tmpChannelMapMaster.get(vcTmp) == master){
+                                if (count == 1 && !isSomeoneInChannel(master)){
+                                    tmpChannelCount.put(master, 0);
+                                    deleteChannel(vcTmp);
+                                }else {
+                                    int tmppos = Integer.parseInt(vcTmp.getName().split(";")[1]);
+                                    tmppos--;
+                                    vcTmp.getManager().setName("⏰;"+tmppos+";"+masterNames.get(master)).queue();
+                                }
                             }
                         }
                     }
-                }
-            }else if(tmpMasterChannelList.contains(vc) && tmpChannelCount.get(vc) <= 1){
-                List<VoiceChannel> tmpChannelListClone = new ArrayList<>(tmpChannelList);
-                for (VoiceChannel vc2 : tmpChannelListClone){
-                    if (tmpChannelMapMaster.get(vc2) == vc){
-                        deleteChannel(vc2);
-                        tmpChannelCount.put(vc, 0);
+                }else if(tmpMasterChannelList.contains(vc) && tmpChannelCount.get(vc) <= 1){
+                    List<VoiceChannel> tmpChannelListClone = new ArrayList<>(tmpChannelList);
+                    for (VoiceChannel vc2 : tmpChannelListClone){
+                        if (tmpChannelMapMaster.get(vc2) == vc){
+                            deleteChannel(vc2);
+                            tmpChannelCount.put(vc, 0);
+                        }
                     }
                 }
             }
@@ -405,7 +419,7 @@ public class HandleChannelMovement extends ListenerAdapter {
     public void checkMasterChannels(){
         for (VoiceChannel vc : tmpMasterChannelList){
             if (vc.getMembers().size() > 0){
-                createTmpChannel(vc.getGuild(), vc.getName(),1,vc.getPosition(),vc.getUserLimit(),vc,vc.getParent(),vc.getBitrate());
+                createTmpChannel(vc.getGuild(), vc.getName(),1,vc.getPosition(),vc.getUserLimit(),vc,vc.getParentCategory(),vc.getBitrate());
                 tmpChannelCount.put(vc,1);
             }
         }
